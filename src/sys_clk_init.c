@@ -103,6 +103,7 @@ void SetSysClockTo72(void)
   }
 }
 
+MotorSpeeds newspeeds;
 
 void main(){
 
@@ -115,6 +116,7 @@ void main(){
   TM_Init();
 
   while (1) {
+
     logDebugInfo();
   }
 }

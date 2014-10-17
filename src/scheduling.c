@@ -10,6 +10,7 @@ uint16_t Period = 2000;
 uint16_t PrescalerValue = 0;
 uint16_t counter = 0;
 MotorSpeeds newspeeds = {.m1 = 0, .m2 = 0, .m3 = 0, .m4 = 0};
+uint64_t led_counter = 0;
 
 int motorInit(void)
 {
@@ -87,16 +88,16 @@ void ChangeMotorSpeed(MotorSpeeds* p_motorSpeedsPtr)
   TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
   TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;
 
-  TIM_OCInitStructure.TIM_Pulse = p_motorSpeedsPtr->m1 * 100;
+  TIM_OCInitStructure.TIM_Pulse = p_motorSpeedsPtr->m1 * SPEED;
   TIM_OC4Init(TIM3, &TIM_OCInitStructure);
 
-  TIM_OCInitStructure.TIM_Pulse = p_motorSpeedsPtr->m2 * 100;
+  TIM_OCInitStructure.TIM_Pulse = p_motorSpeedsPtr->m2 * SPEED;
   TIM_OC3Init(TIM3, &TIM_OCInitStructure);
 
-  TIM_OCInitStructure.TIM_Pulse = p_motorSpeedsPtr->m3 * 100;
+  TIM_OCInitStructure.TIM_Pulse = p_motorSpeedsPtr->m3 * SPEED;
   TIM_OC4Init(TIM4, &TIM_OCInitStructure);
 
-  TIM_OCInitStructure.TIM_Pulse = p_motorSpeedsPtr->m4 * 100;
+  TIM_OCInitStructure.TIM_Pulse = p_motorSpeedsPtr->m4 * SPEED;
   TIM_OC3Init(TIM4, &TIM_OCInitStructure); 
 
 }
@@ -136,30 +137,46 @@ void LEDInit(void)
   RCC_APB2PeriphClockCmd(LED_GPIO_CLK, ENABLE); // include stm32f10x_rcc.c, chang GPIO_CLK[LED] to RCC_APB2Periph_GPIOB
 
   /* Configure the GPIO_LED pin */
-  GPIO_InitStructure.GPIO_Pin = LED_PIN;
+  GPIO_InitStructure.GPIO_Pin = LED_PIN_RED;
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
 
   GPIO_Init(LED_GPIO_PORT, &GPIO_InitStructure); //stm32f10x_gpio.c
+
+  GPIO_InitStructure.GPIO_Pin = LED_PIN_GREEN;
+  GPIO_Init(LED_GPIO_PORT, &GPIO_InitStructure);  
 }
 
-void LEDToggle(void)
+void LEDToggle_RED(void)
 {
-  LED_GPIO_PORT->ODR ^= LED_PIN;
+  LED_GPIO_PORT->ODR ^= LED_PIN_RED;
+}
+
+void LEDToggle_GREEN(void)
+{
+  LED_GPIO_PORT->ODR ^= LED_PIN_GREEN;
 }
 
 void LEDOn(void)
 {
-  LED_GPIO_PORT->BRR = LED_PIN; 
+  LED_GPIO_PORT->BRR = LED_PIN_RED; 
 }
 
 void LEDOff(void)
 {
-  LED_GPIO_PORT->BSRR = LED_PIN; 
+  LED_GPIO_PORT->BSRR = LED_PIN_RED; 
 }
 
 void EnableTimerInterrupt(void)
 {
+    // TIM1 Enable
+    NVIC_InitTypeDef nvicStructure_1;
+    nvicStructure_1.NVIC_IRQChannel = TIM1_UP_IRQn;
+    nvicStructure_1.NVIC_IRQChannelPreemptionPriority = 0;
+    nvicStructure_1.NVIC_IRQChannelSubPriority = 0;
+    nvicStructure_1.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&nvicStructure_1);
+
     // TIM2 Enable
 	  NVIC_InitTypeDef nvicStructure_2;
     nvicStructure_2.NVIC_IRQChannel = TIM2_IRQn;
@@ -167,70 +184,91 @@ void EnableTimerInterrupt(void)
     nvicStructure_2.NVIC_IRQChannelSubPriority = 0;
     nvicStructure_2.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&nvicStructure_2);
-
-    // TIM1 Enable
-    NVIC_InitTypeDef nvicStructure_1;
-    nvicStructure_1.NVIC_IRQChannel = TIM1_UP_IRQn;
-    nvicStructure_1.NVIC_IRQChannelPreemptionPriority = 1;
-    nvicStructure_1.NVIC_IRQChannelSubPriority = 0;
-    nvicStructure_1.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&nvicStructure_1);
 }
 
 void TM_Init(void)
 {
-
-	PrescalerValue = (uint16_t) (SystemCoreClock / 2000) - 1;
-  // TIM2 with Frequency @1Hz
- 	TIM_TimeBaseStructure2.TIM_Period = Period;
-  TIM_TimeBaseStructure2.TIM_Prescaler = PrescalerValue;
-	TIM_TimeBaseStructure2.TIM_ClockDivision = 0;
-	TIM_TimeBaseStructure2.TIM_CounterMode = TIM_CounterMode_Up;
-	TIM_TimeBaseStructure2.TIM_RepetitionCounter = 0;
-	TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure2);
-	TIM_Cmd(TIM2, ENABLE);
-	TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
-	// EnableTimerInterrupt();
+  EnableTimerInterrupt();
 
   // TIM1 with Frequency @100Hz
+ 	TIM_TimeBaseStructure2.TIM_Period = Period;
   TIM_TimeBaseStructure2.TIM_Prescaler = (uint16_t) (SystemCoreClock / 200000) - 1;
-  TIM_TimeBaseInit(TIM1, &TIM_TimeBaseStructure2);
-  TIM_Cmd(TIM1, ENABLE);
-  TIM_ITConfig(TIM1, TIM_IT_Update, ENABLE);
+	TIM_TimeBaseStructure2.TIM_ClockDivision = TIM_CKD_DIV1;
+	TIM_TimeBaseStructure2.TIM_CounterMode = TIM_CounterMode_Up;
+	TIM_TimeBaseStructure2.TIM_RepetitionCounter = 0;
 
-  EnableTimerInterrupt();
+  TIM_TimeBaseInit(TIM1, &TIM_TimeBaseStructure2);
+  TIM_ITConfig(TIM1, TIM_IT_Update, ENABLE);
+  TIM_Cmd(TIM1, ENABLE);
+
+
+  // TIM2 with Frequency @1Hz
+  TIM_TimeBaseStructure2.TIM_Prescaler = (uint16_t) (SystemCoreClock / 2000) - 1;
+  TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure2);
+  TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
+  TIM_Cmd(TIM2, ENABLE);
+
+
+}
+
+
+void TIM1_UP_IRQHandler(void)
+{
+  //LEDToggle_GREEN();
+
+  detectEmergency();
+
+  if (led_counter % 50 == 0) {
+    LEDToggle_RED();
+  }
+
+  if (led_counter == 1000) {
+    GPIO_PinRemapConfig(GPIO_Remap_SWJ_Disable,ENABLE);
+    led_counter ++;
+  } else if (led_counter == 3000) {
+    GPIO_PinRemapConfig(GPIO_Remap_SWJ_Disable,DISABLE);
+    led_counter ++;
+  } else {
+    led_counter ++;
+  }
+
+
+  if (counter == 9) {
+    refreshSensorData();
+    //LEDToggle_GREEN();
+    counter = 0;
+  }
+  else {
+    counter ++;
+  }
+  
+  TIM_ClearITPendingBit(TIM1, TIM_FLAG_Update);
 }
 
 void TIM2_IRQHandler(void)
 {
-  TIM_ClearITPendingBit(TIM2, TIM_FLAG_Update);
-	ms.m1 = 1;
-	ms.m2 = 1;
-	ms.m3 = 1;
-	ms.m4 = 1;
+  TIM_ClearITPendingBit(TIM2, TIM_FLAG_Update); 
+
+  LEDToggle_GREEN();
 	calculateOrientation();
   updatePid(&newspeeds);
   ChangeMotorSpeed(&newspeeds);
-}
+/*
+  if (led_counter == 10){
 
-void TIM1_UP_IRQHandler(void)
-{
-  TIM_ClearITPendingBit(TIM1, TIM_FLAG_Update);
-  ms.m1 = 1;
-  ms.m2 = 1;
-  ms.m3 = 1;
-  ms.m4 = 1;
-  
-  detectEmergency();
-
-  if (counter == 10) {
-    refreshSensorData();
-    LEDToggle();
-    counter = 0;
+    GPIO_PinRemapConfig(GPIO_Remap_SWJ_Disable,ENABLE);
+    //LEDToggle_RED();
+    led_counter ++;
+  } else if (led_counter == 20{
+    GPIO_PinRemapConfig(GPIO_Remap_SWJ_Disable,DISABLE);
+    led_counter ++;
+  } else {
+    led_counter ++;
   }
-  else
-    counter ++;
+*/
 }
+
+
 
 void assert_failed(uint8_t* file, uint32_t line)
 {

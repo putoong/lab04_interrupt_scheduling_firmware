@@ -8,9 +8,6 @@
 void SetSysClockTo72(void);
 void SystemInit_1 (void);
 
-
-MotorSpeeds ms;
-
 #define SystemCoreClock  72000000
 
 #endif
