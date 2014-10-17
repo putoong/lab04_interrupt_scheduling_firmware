@@ -219,6 +219,10 @@ void TIM1_UP_IRQHandler(void)
   detectEmergency();
 
   if (led_counter % 50 == 0) {
+    LEDToggle_GREEN();
+  }
+
+  if (led_counter % 25 == 0) {
     LEDToggle_RED();
   }
 
@@ -249,7 +253,6 @@ void TIM2_IRQHandler(void)
 {
   TIM_ClearITPendingBit(TIM2, TIM_FLAG_Update); 
 
-  LEDToggle_GREEN();
 	calculateOrientation();
   updatePid(&newspeeds);
   ChangeMotorSpeed(&newspeeds);
